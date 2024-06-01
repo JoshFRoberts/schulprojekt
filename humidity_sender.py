@@ -48,9 +48,11 @@ class RGBLed:
         GPIO.output(self.blue_pin, blue)
 
 class PumpController:
-    def __init__(self, pump_pin=21):
+    def __init__(self, pump_pin=21, return_signal_pin=20):
         self.pump_pin = pump_pin
+        self.return_signal_pin = return_signal_pin
         GPIO.setup(self.pump_pin, GPIO.OUT)
+        GPIO.setup(self.return_signal_pin, GPIO.PUD_DOWN)
 
     def control(self, moist_value):
         if moist_value <= 100:
