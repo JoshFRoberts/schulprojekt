@@ -4,6 +4,8 @@ import os
 import glob
 from time import sleep
 
+## Requirements V
+# pip3 install paho-mqtt spidev RPi-gpio
 import paho.mqtt.client as mqtt
 import RPi.GPIO as GPIO
 import spidev
@@ -52,7 +54,7 @@ class PumpController:
         self.pump_pin = pump_pin
         self.return_signal_pin = return_signal_pin
         GPIO.setup(self.pump_pin, GPIO.OUT)
-        GPIO.setup(self.return_signal_pin, GPIO.PUD_DOWN)
+        GPIO.setup(self.return_signal_pin, GPIO.IN, GPIO.PUD_DOWN)
 
     def control(self, moist_value):
         if moist_value <= 100:
