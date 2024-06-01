@@ -84,9 +84,9 @@ class MoistureMonitoringSystem:
         self.pump = PumpController()
         self.mqtt_client = MQTTClient()
 
-    def run(self):
+    def run(self, channel=2):
         while True:
-            moisture_level = self.sensor.read(1)
+            moisture_level = self.sensor.read(channel)
             self.led.set_color(moisture_level)
             self.pump.control(moisture_level)
             self.mqtt_client.publish(moisture_level)
