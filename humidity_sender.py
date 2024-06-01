@@ -3,94 +3,93 @@
 import os
 import glob
 from time import sleep
- 
+
 import paho.mqtt.client as mqtt
 import RPi.GPIO as GPIO
-import spidev 
-# MQTT setup
+import spidev
 
-broker = "localhost"
-port = 1883
-topic = "humantiddi"
+class MoistureSensor:
+    def __init__(self, spi_bus=0, spi_device=0, max_speed_hz=100000):
+        self.spi = spidev.SpiDev()
+        self.spi.open(spi_bus, spi_device)
+        self.spi.max_speed_hz = max_speed_hz
 
-SPI_BUS = 0
-SPI_DEVICE = 0
-SPI_SENSOR_MAX_HZ = 100000
-    
-# Initalisiere Feuchtigkeitssensor
-# (Check: https://sigmdel.ca/michel/ha/rpi/dnld/draft_spidev_doc.pdf)
-spi = spidev.SpiDev()
-spi.open(SPI_BUS, SPI_DEVICE)
-spi.max_speed_hz = SPI_SENSOR_MAX_HZ
+    def read(self, channel):
+        value = self.spi.xfer2([1, (8 + channel) << 4, 0])
+        data = ((value[1] & 3) << 8) + value[2]
+        return data
 
-# RGB LED setup
-GPIO.setwarnings(False)
-GPIO.setmode(GPIO.BCM)
+class RGBLed:
+    def __init__(self, red_pin=6, green_pin=19, blue_pin=13):
+        self.red_pin = red_pin
+        self.green_pin = green_pin
+        self.blue_pin = blue_pin
 
-redPin = 6
-greenPin = 19
-bluePin = 13
-pumpResponse = 21
+        GPIO.setwarnings(False)
+        GPIO.setmode(GPIO.BCM)
 
-GPIO.setup(redPin,GPIO.OUT)
-GPIO.setup(greenPin,GPIO.OUT)
-GPIO.setup(bluePin,GPIO.OUT)
-GPIO.setup(pumpResponse, GPIO.OUT)
+        GPIO.setup(self.red_pin, GPIO.OUT)
+        GPIO.setup(self.green_pin, GPIO.OUT)
+        GPIO.setup(self.blue_pin, GPIO.OUT)
 
-def read_spi(channel):
-    # Siehe https://tutorials-raspberrypi.com/measuring-soil-moisture-with-raspberry-pi/
-    # Sensorspezifisches Bit-Gefrickel
-    # siehe https://ww1.microchip.com/downloads/aemDocuments/documents/MSLD/ProductDocuments/DataSheets/MCP3004-MCP3008-Data-Sheet-DS20001295.pdf#G1.1036387
-    value = spi.xfer2([1, (8+channel)<<4, 0])  
-    data  = (value[1]&3 << 8) + value[2]
+    def set_color(self, value):
+        if value < 50:
+            self._set_pins(GPIO.LOW, GPIO.HIGH, GPIO.HIGH)
+        elif value < 100:
+            self._set_pins(GPIO.LOW, GPIO.LOW, GPIO.HIGH)
+        elif value < 150:
+            self._set_pins(GPIO.HIGH, GPIO.LOW, GPIO.HIGH)
+        else:
+            self._set_pins(GPIO.HIGH, GPIO.HIGH, GPIO.LOW)
 
-    # Data returning 1.7V == No Water
+    def _set_pins(self, red, green, blue):
+        GPIO.output(self.red_pin, red)
+        GPIO.output(self.green_pin, green)
+        GPIO.output(self.blue_pin, blue)
 
-    return data
+class PumpController:
+    def __init__(self, pump_pin=21):
+        self.pump_pin = pump_pin
+        GPIO.setup(self.pump_pin, GPIO.OUT)
 
-def on_publish(self, client, userdata, result, properties):
-    print("data published")
+    def control(self, moist_value):
+        if moist_value <= 100:
+            GPIO.output(self.pump_pin, GPIO.HIGH)
+        else:
+            GPIO.output(self.pump_pin, GPIO.LOW)
 
-def set_led_color(value):
+class MQTTClient:
+    def __init__(self, broker="localhost", port=1883, topic="humantiddi"):
+        self.client = mqtt.Client()
+        self.broker = broker
+        self.port = port
+        self.topic = topic
 
-    # Red for Dry
-    if value < 50:
-        GPIO.output(redPin, GPIO.LOW)
-        GPIO.output(greenPin, GPIO.HIGH)
-        GPIO.output(bluePin, GPIO.HIGH)
+        self.client.on_publish = self.on_publish
+        self.client.connect(self.broker, self.port)
 
-    # Yellow for low Water
-    elif value < 100:
-        GPIO.output(redPin, GPIO.LOW)
-        GPIO.output(greenPin, GPIO.LOW)
-        GPIO.output(bluePin, GPIO.HIGH)
+    def on_publish(self, client, userdata, result):
+        print("data published")
 
-    # Green for Good waterthreshhold
-    elif value < 150:
-        GPIO.output(redPin, GPIO.HIGH)
-        GPIO.output(greenPin, GPIO.LOW)
-        GPIO.output(bluePin, GPIO.HIGH)
+    def publish(self, message):
+        self.client.publish(self.topic, message)
+        self.client.loop(1)
 
-    # Blue for Wet
-    else:
-        GPIO.output(redPin, GPIO.HIGH)
-        GPIO.output(greenPin, GPIO.HIGH)
-        GPIO.output(bluePin, GPIO.LOW)
+class MoistureMonitoringSystem:
+    def __init__(self):
+        self.sensor = MoistureSensor()
+        self.led = RGBLed()
+        self.pump = PumpController()
+        self.mqtt_client = MQTTClient()
 
-client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-client.connect(broker, port)
-client.on_publish = on_publish
+    def run(self):
+        while True:
+            moisture_level = self.sensor.read(1)
+            self.led.set_color(moisture_level)
+            self.pump.control(moisture_level)
+            self.mqtt_client.publish(moisture_level)
+            sleep(1)
 
-while (True):
-    moist = read_spi(1)
-    set_led_color(moist)
-
-    if moist <= 100:
-        GPIO.output(pumpResponse, GPIO.HIGH)
-    elif moist > 100:
-        GPIO.output(pumpResponse, GPIO.LOW)
-
-    client.publish(topic, moist)
-    sleep(1)
-    client.loop(1)
-
+if __name__ == "__main__":
+    system = MoistureMonitoringSystem()
+    system.run()
