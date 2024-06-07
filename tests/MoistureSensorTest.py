@@ -14,4 +14,4 @@ def test_sensor_data(spi_bus=None, spi_device=None, channel=None, max_speed_hz=1
     data = sensor.read(channel)
     if data < 1:
         return False
-    return True     
+    return True

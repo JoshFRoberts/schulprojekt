@@ -74,7 +74,7 @@ class MQTTClient:
         broker = broker if not broker is None else DEFAULT_BROKER
         port = port if not port is None else DEFAULT_PORT
         topic = topic if not topic is None else DEFAULT_TOPIC
-        self.client = mqtt.Client()
+        self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
         self.broker = broker
         self.port = port
         self.topic = topic
@@ -83,9 +83,9 @@ class MQTTClient:
         self.client.connect(self.broker, self.port)
 
     def on_publish(self, client, userdata, msg_count):
-        if DEBUG_PRINT: print(f"Data published from humidity sensor: {userdata}")
-        if userdata is None: 
-            print(f"{FMT_RED}FEHLER{FMT_NONE}: Leere MQTT-Nachricht für Feuchtigkeitssensor")
+        if DEBUG_PRINT: print(f"Data published from humidity sensor")
+        #if userdata is None: 
+        #    print(f"{FMT_RED}FEHLER{FMT_NONE}: Leere MQTT-Nachricht für Feuchtigkeitssensor")
 
     def publish(self, message):
         self.client.publish(self.topic, message)

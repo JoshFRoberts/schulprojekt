@@ -2,7 +2,7 @@
 # General 
 #
 # Output settings
-DEBUG_PRINT = False
+DEBUG_PRINT = True
 # ANSI-escape sequences for basic color formatting of stdout 
 FMT_RED     = "\033[0;31m"
 FMT_GREEN   = "\033[0;32m"
